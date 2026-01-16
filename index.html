@@ -131,107 +131,98 @@
     </div>
 
     <script>
-<div class="drop-zone" id="dropZone">
-            <p>Click, Drop PDF here, <br>or <strong>Paste (Ctrl+V)</strong></p>
-            <span class="file-name" id="fileNameDisplay"></span>
-        </div>
-
-        <button onclick="triggerPaste()" style="margin-bottom: 1.2rem; background-color: #6c757d;">
-            📋 Paste from Clipboard
-        </button>
-
-        <input type="file" id="hiddenFileInput" accept=".pdf">
-        <button onclick="processAndDownload()" id="downloadBtn">Rename & Download</button>
-
-    <script>
         let currentFile = null;
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('hiddenFileInput');
         const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const downloadBtn = document.getElementById('downloadBtn');
 
-        // 1. Handle CLICK
-        dropZone.addEventListener('click', () => fileInput.click());
-
-        // 2. Handle File Input (Standard Upload)
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        // 1. Handle CLICK on the box
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
         });
 
-        // 3. Handle PASTE (Keyboard Ctrl+V)
+        // 2. Handle File Input Change (standard upload)
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // 3. Handle PASTE
         document.addEventListener('paste', (e) => {
             const items = e.clipboardData.items;
-            processClipboardItems(items);
+            for (let i = 0; i < items.length; i++) {
+                // Look for a file in the clipboard
+                if (items[i].kind === 'file') {
+                    const pastedFile = items[i].getAsFile();
+                    // Check if it is a PDF
+                    if (pastedFile.type === 'application/pdf' || pastedFile.name.endsWith('.pdf')) {
+                        handleFile(pastedFile);
+                    } else {
+                        alert("The pasted file is not a PDF.");
+                    }
+                }
+            }
         });
 
         // 4. Handle DRAG & DROP
         dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
+            e.preventDefault(); // Necessary to allow dropping
             dropZone.classList.add('dragover');
         });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+            
+            if (e.dataTransfer.files.length > 0) {
+                const droppedFile = e.dataTransfer.files[0];
+                if (droppedFile.type === 'application/pdf' || droppedFile.name.endsWith('.pdf')) {
+                    handleFile(droppedFile);
+                } else {
+                    alert("Please drop a PDF file.");
+                }
+            }
         });
 
-        // 5. NEW: Handle "Paste Button" Click
-        async function triggerPaste() {
-            try {
-                // This asks the browser for clipboard access
-                const clipboardItems = await navigator.clipboard.read();
-                for (const item of clipboardItems) {
-                    // We look for a PDF type in the clipboard item
-                    if (item.types.includes('application/pdf')) {
-                        const blob = await item.getType('application/pdf');
-                        // Convert blob to a File object
-                        const file = new File([blob], "pasted_file.pdf", { type: "application/pdf" });
-                        handleFile(file);
-                        return;
-                    }
-                }
-                alert("No PDF found in clipboard. (Note: Mobile phones often block pasting files directly.)");
-            } catch (err) {
-                console.error(err);
-                alert("Could not access clipboard. Please use the 'Click' option to select the file manually.");
-            }
-        }
-
-        // Helper to check items (used by Ctrl+V)
-        function processClipboardItems(items) {
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].kind === 'file') {
-                    const pastedFile = items[i].getAsFile();
-                    if (pastedFile.type === 'application/pdf' || pastedFile.name.endsWith('.pdf')) {
-                        handleFile(pastedFile);
-                    }
-                }
-            }
-        }
-
+        // Common function to update state when a file is received
         function handleFile(file) {
             currentFile = file;
             fileNameDisplay.textContent = "Selected: " + file.name;
-            dropZone.style.borderColor = "#28a745";
+            dropZone.style.borderColor = "#28a745"; // Turn border green
             dropZone.style.backgroundColor = "#e8f5e9";
         }
 
         function processAndDownload() {
             const numberInput = document.getElementById('discNumber').value;
-            if (!numberInput) return alert("Please enter a Discussion Number.");
-            if (!currentFile) return alert("Please select a PDF file.");
+            
+            if (!numberInput) {
+                alert("Please enter a Discussion Number.");
+                return;
+            }
+            if (!currentFile) {
+                alert("Please select or paste a PDF file.");
+                return;
+            }
 
             const newFileName = `MEEN 305 - Disc ${numberInput}.pdf`;
             const url = URL.createObjectURL(currentFile);
             const link = document.createElement('a');
+            
             link.href = url;
             link.download = newFileName;
+            
             document.body.appendChild(link);
             link.click();
+            
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
         }
-    </script>
     </script>
 </body>
 </html>
