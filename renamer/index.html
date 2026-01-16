@@ -15,6 +15,27 @@
             margin: 0;
             color: #333;
         }
+        
+        /* NEW: Home Button Style */
+        .home-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            text-decoration: none;
+            color: #666;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .home-btn:hover {
+            background-color: #e2e6ea;
+            color: #007bff;
+        }
+
         .container {
             background: white;
             padding: 2rem;
@@ -24,30 +45,13 @@
             max-width: 450px;
             text-align: center;
         }
-        h1 {
-            font-size: 1.5rem;
-            margin-bottom: 1.5rem;
-            color: #2c3e50;
-        }
-        .form-group {
-            margin-bottom: 1.2rem;
-            text-align: left;
-        }
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
+        h1 { font-size: 1.5rem; margin-bottom: 1.5rem; color: #2c3e50; }
+        .form-group { margin-bottom: 1.2rem; text-align: left; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.9rem; }
         input[type="number"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            box-sizing: border-box;
+            width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;
         }
         
-        /* The Drop/Paste Zone Styles */
         .drop-zone {
             border: 2px dashed #007bff;
             border-radius: 6px;
@@ -58,55 +62,23 @@
             margin-bottom: 1.2rem;
             background-color: #f8fbff;
         }
-        .drop-zone:hover, .drop-zone.dragover {
-            background-color: #e6f0ff;
-            border-color: #0056b3;
-        }
-        .drop-zone p {
-            margin: 0;
-            font-size: 0.9rem;
-            color: #555;
-            pointer-events: none; /* Prevents text selection while dragging */
-        }
-        .drop-zone .file-name {
-            display: block;
-            margin-top: 10px;
-            font-weight: bold;
-            color: #007bff;
-            word-break: break-all;
-        }
+        .drop-zone:hover, .drop-zone.dragover { background-color: #e6f0ff; border-color: #0056b3; }
+        .drop-zone p { margin: 0; font-size: 0.9rem; color: #555; pointer-events: none; }
+        .drop-zone .file-name { display: block; margin-top: 10px; font-weight: bold; color: #007bff; word-break: break-all; }
         
-        /* Hide the actual file input but keep it functional */
-        #hiddenFileInput {
-            display: none;
-        }
+        #hiddenFileInput { display: none; }
 
         button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 1rem;
-            width: 100%;
-            transition: background 0.2s;
+            background-color: #007bff; color: white; border: none; padding: 12px 20px;
+            border-radius: 6px; cursor: pointer; font-size: 1rem; width: 100%; transition: background 0.2s;
         }
-        button:hover {
-            background-color: #0056b3;
-        }
-        button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        .footer {
-            margin-top: 1.5rem;
-            font-size: 0.8rem;
-            color: #777;
-        }
+        button:hover { background-color: #0056b3; }
+        .footer { margin-top: 1.5rem; font-size: 0.8rem; color: #777; }
     </style>
 </head>
 <body>
+
+    <a href="../" class="home-btn">🏠 Home</a>
 
     <div class="container">
         <h1>MEEN 305 Renamer</h1>
@@ -121,13 +93,14 @@
             <span class="file-name" id="fileNameDisplay"></span>
         </div>
 
-        <input type="file" id="hiddenFileInput" accept=".pdf">
+        <button onclick="triggerPaste()" style="margin-bottom: 1.2rem; background-color: #6c757d;">
+            📋 Paste from Clipboard
+        </button>
 
+        <input type="file" id="hiddenFileInput" accept=".pdf">
         <button onclick="processAndDownload()" id="downloadBtn">Rename & Download</button>
 
-        <div class="footer">
-            Files are processed locally. Nothing is uploaded.
-        </div>
+        <div class="footer">Files are processed locally. Nothing is uploaded.</div>
     </div>
 
     <script>
@@ -135,91 +108,62 @@
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('hiddenFileInput');
         const fileNameDisplay = document.getElementById('fileNameDisplay');
-        const downloadBtn = document.getElementById('downloadBtn');
 
-        // 1. Handle CLICK on the box
-        dropZone.addEventListener('click', () => {
-            fileInput.click();
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
+
+        document.addEventListener('paste', (e) => { processClipboardItems(e.clipboardData.items); });
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault(); dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
         });
 
-        // 2. Handle File Input Change (standard upload)
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFile(e.target.files[0]);
-            }
-        });
-
-        // 3. Handle PASTE
-        document.addEventListener('paste', (e) => {
-            const items = e.clipboardData.items;
-            for (let i = 0; i < items.length; i++) {
-                // Look for a file in the clipboard
-                if (items[i].kind === 'file') {
-                    const pastedFile = items[i].getAsFile();
-                    // Check if it is a PDF
-                    if (pastedFile.type === 'application/pdf' || pastedFile.name.endsWith('.pdf')) {
-                        handleFile(pastedFile);
-                    } else {
-                        alert("The pasted file is not a PDF.");
+        async function triggerPaste() {
+            try {
+                const clipboardItems = await navigator.clipboard.read();
+                for (const item of clipboardItems) {
+                    if (item.types.includes('application/pdf')) {
+                        const blob = await item.getType('application/pdf');
+                        const file = new File([blob], "pasted_file.pdf", { type: "application/pdf" });
+                        handleFile(file);
+                        return;
                     }
                 }
-            }
-        });
+                alert("No PDF found in clipboard.");
+            } catch (err) { alert("Could not access clipboard. Please use Click/Drop."); }
+        }
 
-        // 4. Handle DRAG & DROP
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault(); // Necessary to allow dropping
-            dropZone.classList.add('dragover');
-        });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            
-            if (e.dataTransfer.files.length > 0) {
-                const droppedFile = e.dataTransfer.files[0];
-                if (droppedFile.type === 'application/pdf' || droppedFile.name.endsWith('.pdf')) {
-                    handleFile(droppedFile);
-                } else {
-                    alert("Please drop a PDF file.");
+        function processClipboardItems(items) {
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].kind === 'file') {
+                    const pastedFile = items[i].getAsFile();
+                    if (pastedFile.type === 'application/pdf' || pastedFile.name.endsWith('.pdf')) handleFile(pastedFile);
                 }
             }
-        });
+        }
 
-        // Common function to update state when a file is received
         function handleFile(file) {
             currentFile = file;
             fileNameDisplay.textContent = "Selected: " + file.name;
-            dropZone.style.borderColor = "#28a745"; // Turn border green
+            dropZone.style.borderColor = "#28a745";
             dropZone.style.backgroundColor = "#e8f5e9";
         }
 
         function processAndDownload() {
             const numberInput = document.getElementById('discNumber').value;
-            
-            if (!numberInput) {
-                alert("Please enter a Discussion Number.");
-                return;
-            }
-            if (!currentFile) {
-                alert("Please select or paste a PDF file.");
-                return;
-            }
+            if (!numberInput) return alert("Please enter a Discussion Number.");
+            if (!currentFile) return alert("Please select a PDF file.");
 
             const newFileName = `MEEN 305 - Disc ${numberInput}.pdf`;
             const url = URL.createObjectURL(currentFile);
             const link = document.createElement('a');
-            
             link.href = url;
             link.download = newFileName;
-            
             document.body.appendChild(link);
             link.click();
-            
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
         }
