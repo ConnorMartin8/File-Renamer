@@ -6,7 +6,6 @@
     <title>HTML to PDF Converter</title>
     <link rel="icon" type="image/png" href="../icon.png?v=2">
     <link rel="apple-touch-icon" href="../icon.png?v=2">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -17,14 +16,13 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            overflow: hidden; /* Prevent scrollbars from the hidden print area */
         }
 
         .home-btn {
             position: absolute; top: 20px; left: 20px;
             text-decoration: none; color: #888; font-weight: 600;
             display: flex; align-items: center; gap: 5px; padding: 8px 12px;
-            border-radius: 6px; transition: color 0.2s; z-index: 100;
+            border-radius: 6px; transition: color 0.2s;
         }
         .home-btn:hover { color: #fff; background: #333; }
 
@@ -36,8 +34,6 @@
             width: 100%;
             max-width: 450px;
             text-align: center;
-            position: relative;
-            z-index: 10; /* Keep this above the print area */
         }
 
         h1 { margin-top: 0; margin-bottom: 1rem; color: #fff; }
@@ -67,31 +63,6 @@
         }
         button:hover { opacity: 0.9; }
         button:disabled { background-color: #444; color: #777; cursor: not-allowed; }
-
-        /* THE FIX: The Render Area */
-        #content-to-print {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 800px; /* Standard A4 width mostly */
-            height: auto;
-            min-height: 100vh;
-            
-            /* Force High Contrast for PDF */
-            background-color: #ffffff !important;
-            color: #000000 !important;
-            
-            padding: 40px;
-            box-sizing: border-box;
-            
-            /* Hide it from the user visually, but keep it 'visible' for the renderer */
-            z-index: -9999;
-            opacity: 0; 
-            pointer-events: none;
-        }
-        
-        /* Ensure styles inside the PDF container don't break */
-        #content-to-print img { max-width: 100%; }
     </style>
 </head>
 <body>
@@ -100,7 +71,7 @@
 
     <div class="container">
         <h1>HTML to PDF</h1>
-        <p>Upload an HTML file to convert it instantly.</p>
+        <p>Best for files with Math/Complex Layouts.</p>
 
         <div class="drop-zone" id="dropZone">
             <p>Click or Drop HTML file here</p>
@@ -108,19 +79,17 @@
         </div>
 
         <input type="file" id="hiddenFileInput" accept=".html,.htm">
-        <button onclick="convertFile()" id="convertBtn" disabled>Download PDF</button>
+        <button onclick="printFile()" id="printBtn" disabled>Open Print/Save Dialog</button>
     </div>
-
-    <div id="content-to-print"></div>
 
     <script>
         let currentFile = null;
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('hiddenFileInput');
         const fileNameDisplay = document.getElementById('fileNameDisplay');
-        const convertBtn = document.getElementById('convertBtn');
-        const processingDiv = document.getElementById('content-to-print');
+        const printBtn = document.getElementById('printBtn');
 
+        // --- Interaction Logic ---
         dropZone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -134,59 +103,41 @@
             currentFile = file;
             fileNameDisplay.textContent = "Selected: " + file.name;
             dropZone.style.borderColor = "#28a745";
-            convertBtn.disabled = false;
+            printBtn.disabled = false;
         }
 
-        function convertFile() {
+        function printFile() {
             if (!currentFile) return;
 
-            const originalText = convertBtn.textContent;
-            convertBtn.textContent = "Generating...";
-            convertBtn.disabled = true;
+            // 1. Create a secure local URL for the file
+            const blobUrl = URL.createObjectURL(currentFile);
 
-            const reader = new FileReader();
+            // 2. Create an invisible iframe to load the file
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
             
-            reader.onload = function(e) {
-                let htmlContent = e.target.result;
+            // 3. Load the file
+            iframe.src = blobUrl;
+            document.body.appendChild(iframe);
 
-                // CLEANUP: Extract content from <body> if it exists
-                // This prevents nested <body> tags which confuse the browser
-                if (htmlContent.includes('<body')) {
-                    const bodyMatch = htmlContent.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-                    if (bodyMatch && bodyMatch[1]) {
-                        htmlContent = bodyMatch[1];
-                    }
-                }
-
-                // Inject content
-                processingDiv.innerHTML = htmlContent;
-
-                // PDF Settings
-                const opt = {
-                    margin:       10,
-                    filename:     currentFile.name.replace('.html', '.pdf'),
-                    image:        { type: 'jpeg', quality: 0.98 },
-                    html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
-                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                };
-
-                // Wait 500ms for any images/fonts in the injected HTML to settle
+            // 4. Wait for it to load completely (Script execution + MathJax)
+            iframe.onload = function() {
+                // Give MathJax a moment to finish rendering equations
                 setTimeout(() => {
-                    html2pdf().set(opt).from(processingDiv).save().then(() => {
-                        convertBtn.textContent = originalText;
-                        convertBtn.disabled = false;
-                        // Clear memory after 2 seconds
-                        setTimeout(() => processingDiv.innerHTML = '', 2000);
-                    }).catch(err => {
-                        console.error(err);
-                        alert("Error generating PDF. The file might be too complex.");
-                        convertBtn.textContent = originalText;
-                        convertBtn.disabled = false;
-                    });
-                }, 500);
+                    iframe.contentWindow.focus();
+                    iframe.contentWindow.print();
+                    
+                    // Cleanup after print dialog closes (or user cancels)
+                    // Note: We can't detect 'cancel', so we clean up on a long timeout 
+                    // or just leave the invisible iframe (it's harmless).
+                    URL.revokeObjectURL(blobUrl);
+                }, 1000); // 1 second delay to ensure Math is drawn
             };
-
-            reader.readAsText(currentFile);
         }
     </script>
 </body>
