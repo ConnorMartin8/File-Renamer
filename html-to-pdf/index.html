@@ -17,13 +17,14 @@
             align-items: center;
             height: 100vh;
             margin: 0;
+            overflow: hidden; /* Prevent scrollbars from the hidden print area */
         }
 
         .home-btn {
             position: absolute; top: 20px; left: 20px;
             text-decoration: none; color: #888; font-weight: 600;
             display: flex; align-items: center; gap: 5px; padding: 8px 12px;
-            border-radius: 6px; transition: color 0.2s;
+            border-radius: 6px; transition: color 0.2s; z-index: 100;
         }
         .home-btn:hover { color: #fff; background: #333; }
 
@@ -35,6 +36,8 @@
             width: 100%;
             max-width: 450px;
             text-align: center;
+            position: relative;
+            z-index: 10; /* Keep this above the print area */
         }
 
         h1 { margin-top: 0; margin-bottom: 1rem; color: #fff; }
@@ -50,10 +53,7 @@
             margin-bottom: 1.5rem;
             background-color: #23232a;
         }
-        .drop-zone:hover, .drop-zone.dragover { 
-            background-color: #2a2a35; 
-            border-color: #00d2ff; 
-        }
+        .drop-zone:hover, .drop-zone.dragover { background-color: #2a2a35; border-color: #00d2ff; }
         .drop-zone p { margin: 0; font-size: 0.9rem; color: #888; pointer-events: none; }
         .drop-zone .file-name { display: block; margin-top: 10px; font-weight: bold; color: #00d2ff; word-break: break-all; }
 
@@ -68,16 +68,30 @@
         button:hover { opacity: 0.9; }
         button:disabled { background-color: #444; color: #777; cursor: not-allowed; }
 
-        /* A hidden area to render the HTML before converting */
+        /* THE FIX: The Render Area */
         #content-to-print {
-            position: absolute;
-            left: -9999px;
+            position: fixed;
             top: 0;
-            width: 800px; /* Standard A4 width roughly */
-            background: white;
-            color: black;
-            padding: 20px;
+            left: 0;
+            width: 800px; /* Standard A4 width mostly */
+            height: auto;
+            min-height: 100vh;
+            
+            /* Force High Contrast for PDF */
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            
+            padding: 40px;
+            box-sizing: border-box;
+            
+            /* Hide it from the user visually, but keep it 'visible' for the renderer */
+            z-index: -9999;
+            opacity: 0; 
+            pointer-events: none;
         }
+        
+        /* Ensure styles inside the PDF container don't break */
+        #content-to-print img { max-width: 100%; }
     </style>
 </head>
 <body>
@@ -107,10 +121,8 @@
         const convertBtn = document.getElementById('convertBtn');
         const processingDiv = document.getElementById('content-to-print');
 
-        // UI Interactions
         dropZone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
-
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
         dropZone.addEventListener('drop', (e) => {
@@ -119,10 +131,6 @@
         });
 
         function handleFile(file) {
-            if (file.type !== 'text/html' && !file.name.includes('.html')) {
-                alert("Please select a valid HTML file.");
-                return;
-            }
             currentFile = file;
             fileNameDisplay.textContent = "Selected: " + file.name;
             dropZone.style.borderColor = "#28a745";
@@ -132,38 +140,50 @@
         function convertFile() {
             if (!currentFile) return;
 
-            // Change button text
             const originalText = convertBtn.textContent;
-            convertBtn.textContent = "Processing...";
+            convertBtn.textContent = "Generating...";
             convertBtn.disabled = true;
 
             const reader = new FileReader();
             
             reader.onload = function(e) {
-                // 1. Get the HTML content
-                const htmlContent = e.target.result;
-                
-                // 2. Put it into the hidden container
+                let htmlContent = e.target.result;
+
+                // CLEANUP: Extract content from <body> if it exists
+                // This prevents nested <body> tags which confuse the browser
+                if (htmlContent.includes('<body')) {
+                    const bodyMatch = htmlContent.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+                    if (bodyMatch && bodyMatch[1]) {
+                        htmlContent = bodyMatch[1];
+                    }
+                }
+
+                // Inject content
                 processingDiv.innerHTML = htmlContent;
 
-                // 3. Configure PDF options
+                // PDF Settings
                 const opt = {
                     margin:       10,
                     filename:     currentFile.name.replace('.html', '.pdf'),
                     image:        { type: 'jpeg', quality: 0.98 },
-                    html2canvas:  { scale: 2 }, // Higher scale = better quality
+                    html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
                     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
                 };
 
-                // 4. Generate and Save
-                html2pdf().set(opt).from(processingDiv).save().then(() => {
-                    // Reset button
-                    convertBtn.textContent = originalText;
-                    convertBtn.disabled = false;
-                    
-                    // Clear the hidden div after a delay
-                    setTimeout(() => processingDiv.innerHTML = '', 1000);
-                });
+                // Wait 500ms for any images/fonts in the injected HTML to settle
+                setTimeout(() => {
+                    html2pdf().set(opt).from(processingDiv).save().then(() => {
+                        convertBtn.textContent = originalText;
+                        convertBtn.disabled = false;
+                        // Clear memory after 2 seconds
+                        setTimeout(() => processingDiv.innerHTML = '', 2000);
+                    }).catch(err => {
+                        console.error(err);
+                        alert("Error generating PDF. The file might be too complex.");
+                        convertBtn.textContent = originalText;
+                        convertBtn.disabled = false;
+                    });
+                }, 500);
             };
 
             reader.readAsText(currentFile);
